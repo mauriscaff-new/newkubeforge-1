@@ -1,0 +1,26 @@
+# Imagem base Node Alpine para runtime leve.
+FROM node:20-alpine
+
+# Define diretório de trabalho da aplicação.
+WORKDIR /app
+
+# Copia manifestos de dependência antes do código para otimizar cache.
+COPY package*.json ./
+
+# Instala somente dependências de produção.
+RUN npm ci --omit=dev
+
+# Copia o código da aplicação para o container.
+COPY --chown=node:node . .
+
+# Define ambiente de execução em produção.
+ENV NODE_ENV=production
+
+# Usa usuário "node" padrão da imagem para evitar root.
+USER node
+
+# Documenta a porta usada pelo serviço.
+EXPOSE {{ port | default(3000) }}
+
+# Executa comando de inicialização da aplicação.
+CMD ["sh", "-c", "{{ start_command | default('npm run start') }}"]

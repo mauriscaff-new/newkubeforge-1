@@ -1,0 +1,37 @@
+# Controle de versão
+.git
+.gitignore
+
+# Ambientes virtuais e caches
+.venv
+venv
+__pycache__
+.pytest_cache
+.mypy_cache
+*.pyc
+*.pyo
+*.pyd
+
+# Artefatos locais
+*.log
+*.sqlite3
+.coverage
+htmlcov
+
+# Segredos e arquivos sensíveis
+.env
+.env.*
+*.pem
+*.key
+*.p12
+
+# Editor / sistema
+.vscode
+.idea
+.DS_Store
+
+# Builds e docs não necessários na imagem de runtime
+dist
+build
+tests
+docs

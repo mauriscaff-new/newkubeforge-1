@@ -1,0 +1,22 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  # HPA para escalar o Deployment do KubeForge conforme carga.
+  name: kubeforge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kubeforge
+  # Mantém no mínimo 2 Pods para disponibilidade.
+  minReplicas: 2
+  # Permite escalar até 6 réplicas sob alta carga.
+  maxReplicas: 6
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        # Escala quando a média de CPU ultrapassar 70%.
+        averageUtilization: 70

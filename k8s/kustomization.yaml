@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kubeforge-system
+resources:
+  # Namespace dedicado da solução.
+  - namespace.yaml
+  # Configurações e segredos da aplicação.
+  - configmap.yaml
+  - secret.yaml
+  # Aplicação principal.
+  - deployment.yaml
+  - service.yaml
+  # Redis com armazenamento persistente.
+  - redis-deployment.yaml
+  - redis-service.yaml
+  # Escalonamento horizontal.
+  - hpa.yaml
+  # Entrada externa com TLS.
+  - ingress.yaml

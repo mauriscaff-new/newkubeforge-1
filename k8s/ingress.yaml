@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  # Ingress para expor o KubeForge com TLS.
+  name: kubeforge
+  annotations:
+    # Define o emissor do cert-manager para certificados automáticos.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # Indica classe nginx para roteamento.
+    kubernetes.io/ingress.class: nginx
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - kubeforge.exemplo.com
+    # Secret onde o certificado TLS será armazenado.
+    secretName: kubeforge-tls
+  rules:
+  - host: kubeforge.exemplo.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kubeforge
+            port:
+              number: 8080

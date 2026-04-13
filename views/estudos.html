@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KubeForge | Estudos Docker e Kubernetes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0e18;
+      --bg2: #11131e;
+      --surface: #191b26;
+      --surface-2: #1f2232;
+      --muted: #a7a9bc;
+      --text: #e6e7ef;
+      --accent: #d7baff;
+      --accent-2: #75d4e8;
+      --ok: #31e368;
+      --warn: #ffb4ab;
+      --border: #323444;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: linear-gradient(180deg, var(--bg2), var(--bg)); color: var(--text); font-family: Inter, sans-serif; }
+    a { color: inherit; text-decoration: none; }
+
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      border-right: 1px solid var(--border);
+      background: rgba(17, 19, 30, 0.86);
+      backdrop-filter: blur(8px);
+      padding: 20px 18px;
+      overflow: auto;
+    }
+    .brand { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .brand h1 { margin: 0; font-family: "Space Grotesk", sans-serif; font-size: 21px; color: var(--accent); letter-spacing: -0.4px; }
+    .back {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12px;
+      padding: 8px 10px;
+      border-radius: 10px;
+    }
+    .back:hover { border-color: var(--accent); color: var(--text); }
+
+    .tagline { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .menu-title { color: var(--accent-2); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 8px; }
+    .menu { display: grid; gap: 6px; margin-bottom: 20px; }
+    .menu a {
+      padding: 9px 10px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .menu a:hover { border-color: var(--border); color: var(--text); background: var(--surface); }
+
+    .content { padding: 28px 32px 44px; }
+    .hero {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      background: radial-gradient(circle at top right, rgba(215, 186, 255, 0.14), transparent 40%), var(--surface);
+      margin-bottom: 20px;
+    }
+    .hero h2 { margin: 0 0 10px; font-size: 34px; font-family: "Space Grotesk", sans-serif; letter-spacing: -0.6px; }
+    .hero p { margin: 0; color: var(--muted); max-width: 900px; line-height: 1.6; }
+
+    .note {
+      margin-top: 14px;
+      border: 1px solid rgba(117, 212, 232, 0.35);
+      background: rgba(117, 212, 232, 0.08);
+      color: #d8f5fb;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 13px;
+    }
+
+    section {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      padding: 20px;
+      margin-top: 16px;
+    }
+    section h3 { margin: 0 0 12px; font-size: 24px; font-family: "Space Grotesk", sans-serif; letter-spacing: -0.3px; }
+    section h4 { margin: 16px 0 8px; font-size: 16px; color: var(--accent); }
+    p, li { line-height: 1.6; }
+    p { margin: 0 0 8px; color: #d8dae7; }
+    ul, ol { margin: 0; padding-left: 18px; color: #d8dae7; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(280px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .card {
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .card strong { color: var(--accent-2); font-size: 13px; }
+
+    pre {
+      margin: 10px 0;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0f121d;
+      color: #d7dcf4;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.6;
+      font-family: "JetBrains Mono", monospace;
+    }
+    code {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      background: #0f121d;
+      border: 1px solid var(--border);
+      padding: 1px 5px;
+      border-radius: 7px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      vertical-align: top;
+    }
+    th { color: var(--accent-2); background: #131626; font-weight: 700; }
+    tr:last-child td { border-bottom: none; }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--muted);
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { position: relative; height: auto; }
+      .content { padding: 18px 16px 28px; }
+      .hero h2 { font-size: 28px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>Docker + K8s</h1>
+        <a class="back" href="/">Voltar</a>
+      </div>
+      <p class="tagline">
+        Material de estudo focado em fundamentos, operacao e boas praticas de Docker e Kubernetes.
+      </p>
+
+      <p class="menu-title">Indice</p>
+      <nav class="menu">
+        <a href="#fundamentos">Fundamentos</a>
+        <a href="#docker">Docker Essencial</a>
+        <a href="#dockerfile">Dockerfile</a>
+        <a href="#compose">Docker Compose</a>
+        <a href="#k8s-arq">Arquitetura K8s</a>
+        <a href="#k8s-objetos">Objetos K8s</a>
+        <a href="#seguranca">Seguranca</a>
+        <a href="#observabilidade">Observabilidade</a>
+        <a href="#laboratorio">Laboratorio</a>
+      </nav>
+
+      <p class="menu-title">Topicos Rapidos</p>
+      <div>
+        <span class="pill">Images</span>
+        <span class="pill">Layers</span>
+        <span class="pill">Multi-stage</span>
+        <span class="pill">Namespaces</span>
+        <span class="pill">Deployments</span>
+        <span class="pill">Services</span>
+        <span class="pill">HPA</span>
+        <span class="pill">NetworkPolicy</span>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div class="hero" id="fundamentos">
+        <h2>Guia de Estudos: Docker e Kubernetes</h2>
+        <p>
+          Docker resolve empacotamento e consistencia de ambiente. Kubernetes resolve operacao em escala,
+          alta disponibilidade, rollout e autoscaling. Estude primeiro o ciclo de vida do container, depois
+          o ciclo de vida do pod e o loop de reconciliacao do cluster.
+        </p>
+        <div class="note">
+          Sequencia recomendada: Docker basico -> Dockerfile e multi-stage -> Compose local -> objetos K8s ->
+          operacao (logs, debug, rollout, scaling).
+        </div>
+      </div>
+
+      <section id="docker">
+        <h3>1. Docker Essencial</h3>
+        <h4>Conceitos</h4>
+        <ul>
+          <li><strong>Image</strong>: template imutavel com camadas.</li>
+          <li><strong>Container</strong>: processo isolado executando uma image.</li>
+          <li><strong>Registry</strong>: repositorio de images (Docker Hub, GHCR, ECR, GCR).</li>
+          <li><strong>Volume</strong>: persistencia de dados fora do ciclo de vida do container.</li>
+        </ul>
+
+        <h4>Camadas e cache</h4>
+        <p>
+          A ordem do Dockerfile impacta tempo de build. Copie arquivos de dependencia antes do codigo para
+          preservar cache em <code>RUN npm ci</code> ou <code>RUN pip install</code>.
+        </p>
+        <pre>
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["python", "main.py"]
+        </pre>
+
+        <h4>Comandos basicos</h4>
+        <pre>
+docker build -t minha-api:dev .
+docker run --rm -p 8000:8000 minha-api:dev
+docker ps
+docker logs -f &lt;container_id&gt;
+docker exec -it &lt;container_id&gt; sh
+        </pre>
+      </section>
+
+      <section id="dockerfile">
+        <h3>2. Dockerfile e Multi-stage Build</h3>
+        <h4>Padroes recomendados</h4>
+        <div class="grid">
+          <div class="card"><strong>Base pequena</strong><p>Use <code>alpine</code> ou <code>slim</code> quando possivel.</p></div>
+          <div class="card"><strong>Usuario nao-root</strong><p>Reduz impacto de comprometimento.</p></div>
+          <div class="card"><strong>CMD em JSON</strong><p>Melhor tratamento de sinais (SIGTERM/SIGINT).</p></div>
+          <div class="card"><strong>.dockerignore</strong><p>Evita build lento e vazamento de arquivos sensiveis.</p></div>
+        </div>
+
+        <h4>Exemplo multi-stage (Node)</h4>
+        <pre>
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
+RUN npm ci --omit=dev
+CMD ["node", "dist/main.js"]
+        </pre>
+      </section>
+
+      <section id="compose">
+        <h3>3. Docker Compose</h3>
+        <p>
+          Compose e ideal para ambiente local com varios servicos (app, banco, redis, fila).
+          Os servicos se enxergam pelo nome do servico na rede interna.
+        </p>
+        <pre>
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+  redis:
+    image: redis:7-alpine
+        </pre>
+        <h4>Comandos uteis</h4>
+        <pre>
+docker compose up --build
+docker compose ps
+docker compose logs -f app
+docker compose down -v
+        </pre>
+      </section>
+
+      <section id="k8s-arq">
+        <h3>4. Arquitetura Kubernetes</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Componente</th>
+              <th>Papel</th>
+              <th>Ponto de estudo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>API Server</td>
+              <td>Entrada de todas as operacoes</td>
+              <td>Entender modelo declarativo e recursos.</td>
+            </tr>
+            <tr>
+              <td>etcd</td>
+              <td>Estado do cluster</td>
+              <td>Consistencia e persistencia do estado desejado.</td>
+            </tr>
+            <tr>
+              <td>Scheduler</td>
+              <td>Escolhe node para pods</td>
+              <td>Requests/limits, afinidade, taints.</td>
+            </tr>
+            <tr>
+              <td>Controller Manager</td>
+              <td>Reconcilia estado real x desejado</td>
+              <td>Deployments, replicas e autorecovery.</td>
+            </tr>
+            <tr>
+              <td>Kubelet</td>
+              <td>Agente no worker node</td>
+              <td>Health checks e status dos pods.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="k8s-objetos">
+        <h3>5. Objetos Kubernetes que voce precisa dominar</h3>
+        <h4>Pod e Deployment</h4>
+        <p>
+          Pod e a menor unidade de execucao. Deployment gerencia replicas, rollout e rollback.
+        </p>
+
+        <h4>Service</h4>
+        <p>
+          Fornece endereco estavel para pods efemeros. Tipos mais usados: <code>ClusterIP</code>,
+          <code>NodePort</code> e <code>LoadBalancer</code>.
+        </p>
+
+        <h4>ConfigMap e Secret</h4>
+        <p>
+          ConfigMap para configuracao nao sensivel. Secret para dados sensiveis. Em producao,
+          combine com ferramentas como External Secrets ou Vault.
+        </p>
+
+        <h4>HPA</h4>
+        <p>
+          Horizontal Pod Autoscaler aumenta/reduz replicas por metrica (CPU/memoria/custom).
+        </p>
+
+        <h4>Kustomize</h4>
+        <pre>
+kubectl apply -k .
+kubectl diff -k .
+        </pre>
+      </section>
+
+      <section id="seguranca">
+        <h3>6. Seguranca em containers e cluster</h3>
+        <div class="grid">
+          <div class="card"><strong>Imagem minima</strong><p>Menos pacote = menos CVE.</p></div>
+          <div class="card"><strong>Nao-root</strong><p>Defina usuario sem privilegio no container.</p></div>
+          <div class="card"><strong>NetworkPolicy</strong><p>Negue por padrao e abra so o necessario.</p></div>
+          <div class="card"><strong>Segredos externos</strong><p>Nao dependa apenas de base64 em Secret.</p></div>
+        </div>
+        <p class="warn"><strong>Regra pratica:</strong> todo container deve ter minimo privilegio de rede, sistema e credenciais.</p>
+      </section>
+
+      <section id="observabilidade">
+        <h3>7. Observabilidade e operacao</h3>
+        <h4>Comandos de diagnostico K8s</h4>
+        <pre>
+kubectl get pods -A
+kubectl describe pod &lt;pod&gt; -n &lt;ns&gt;
+kubectl logs &lt;pod&gt; -n &lt;ns&gt; --previous
+kubectl top pods -n &lt;ns&gt;
+kubectl rollout status deployment/&lt;name&gt; -n &lt;ns&gt;
+        </pre>
+
+        <h4>Sinais comuns de problema</h4>
+        <ul>
+          <li><span class="warn">CrashLoopBackOff</span>: processo principal falhando ao iniciar.</li>
+          <li><span class="warn">ImagePullBackOff</span>: erro de registry/tag/credencial.</li>
+          <li><span class="warn">OOMKilled</span>: limite de memoria baixo.</li>
+          <li><span class="warn">Readiness falhando</span>: app nao pronta para trafego.</li>
+        </ul>
+      </section>
+
+      <section id="laboratorio">
+        <h3>8. Laboratorio guiado (passo a passo)</h3>
+        <ol>
+          <li>Crie um app HTTP simples e containerize com Dockerfile.</li>
+          <li>Adicione healthcheck e rode localmente com Compose.</li>
+          <li>Suba em kind/minikube com Deployment + Service.</li>
+          <li>Inclua probes de liveness/readiness e force falhas controladas.</li>
+          <li>Configure HPA e gere carga para observar scaling.</li>
+          <li>Aplique NetworkPolicy e valide trafego permitido/bloqueado.</li>
+          <li>Use Kustomize para variar dev/stage/prod.</li>
+        </ol>
+      </section>
+
+      <p class="footer">
+        Pagina de estudo focada exclusivamente em Docker e Kubernetes.
+      </p>
+    </main>
+  </div>
+</body>
+</html>

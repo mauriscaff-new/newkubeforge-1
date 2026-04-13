@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  # Service estável para expor os Pods da aplicação.
+  name: {{ app_name }}
+  labels:
+    app: {{ app_name }}
+spec:
+  selector:
+    app: {{ app_name }}
+  ports:
+  - protocol: TCP
+    # Porta exposta para clientes internos/externos.
+    port: 80
+    # Porta real do container.
+    targetPort: {{ port }}
+    name: http
+  # Tipo do Service (ClusterIP/NodePort/LoadBalancer).
+  type: {{ service_type }}

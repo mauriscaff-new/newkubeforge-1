@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace alvo para todos os recursos gerados.
+namespace: {{ namespace | default("default") }}
+
+resources:
+  # Deployment e Service são sempre necessários para a aplicação.
+  - deployment.yaml
+  - service.yaml
+{% if config_vars %}
+  # Inclui ConfigMap apenas quando existem variáveis não sensíveis.
+  - configmap.yaml
+{% endif %}
+{% if secret_vars %}
+  # Inclui Secret apenas quando existem variáveis sensíveis.
+  - secret.yaml
+{% endif %}
+{% if enable_hpa %}
+  # Inclui autoscaling quando habilitado.
+  - hpa.yaml
+{% endif %}
+{% if enable_network_policy %}
+  # Inclui política de rede quando habilitada.
+  - networkpolicy.yaml
+{% endif %}

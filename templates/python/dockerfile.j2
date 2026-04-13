@@ -1,0 +1,30 @@
+# Imagem base Python enxuta para reduzir tamanho final.
+FROM python:3.12-slim
+
+# Diretório de trabalho padrão dentro do container.
+WORKDIR /app
+
+# Copia somente as dependências primeiro para aproveitar cache de build.
+COPY requirements.txt ./
+
+# Instala dependências sem cache local do pip para imagem menor.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Cria usuário sem privilégios para rodar a aplicação em produção.
+RUN useradd --create-home --shell /usr/sbin/nologin appuser
+
+# Copia o código da aplicação.
+COPY . .
+
+# Ajusta permissões para o usuário não-root.
+RUN chown -R appuser:appuser /app
+
+# Troca para usuário sem privilégios.
+USER appuser
+
+# Documenta a porta de exposição da aplicação.
+EXPOSE {{ port | default(8000) }}
+
+# Inicia a API com uvicorn escutando em todas as interfaces.
+CMD ["uvicorn", "{{ app_module | default('main:app') }}", "--host", "0.0.0.0", "--port", "{{ port | default(8000) }}"]
