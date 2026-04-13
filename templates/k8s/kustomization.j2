@@ -20,6 +20,10 @@ resources:
   # Inclui autoscaling quando habilitado.
   - hpa.yaml
 {% endif %}
+{% if replicas >= 2 %}
+  # PodDisruptionBudget garante disponibilidade mínima durante manutenção do cluster.
+  - pdb.yaml
+{% endif %}
 {% if enable_network_policy %}
   # Inclui política de rede quando habilitada.
   - networkpolicy.yaml

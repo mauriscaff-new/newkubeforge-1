@@ -16,11 +16,46 @@ spec:
       labels:
         app: {{ app_name }}
     spec:
+      # Contexto de segurança em nível de Pod — aplica a todos os containers.
+      securityContext:
+        # Todos os processos do Pod rodam com o GID definido.
+        runAsGroup: 1001
+        # Volumes montados herdam este GID (necessário para permissão de escrita).
+        fsGroup: 1001
+      # Volumes efêmeros para caminhos de escrita — existem apenas enquanto o Pod vive.
+      # Quando o Pod é removido/recriado, os dados destes volumes são descartados.
+      volumes:
+      - name: tmp-volume
+        emptyDir:
+          # Limita uso de espaço do diretório temporário de sessões.
+          sizeLimit: 500Mi
+      - name: sources-volume
+        emptyDir:
+          # Limita uso de espaço dos uploads de código-fonte.
+          sizeLimit: 200Mi
       containers:
       - name: {{ app_name }}
         # Imagem do container que será publicada no registry.
         image: {{ image }}
         imagePullPolicy: IfNotPresent
+        # Contexto de segurança do container — princípio do menor privilégio.
+        securityContext:
+          # Impede execução como root mesmo que a imagem defina USER 0.
+          runAsNonRoot: true
+          # Remove capacidade de escalonamento de privilégios via setuid/setgid.
+          allowPrivilegeEscalation: false
+          # Sistema de arquivos somente-leitura — escrita só em volumes explícitos.
+          readOnlyRootFilesystem: true
+          # Linux capabilities desnecessárias para aplicações web são removidas.
+          capabilities:
+            drop:
+              - ALL
+        # Caminhos que precisam de escrita em runtime — montados como emptyDir.
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: sources-volume
+          mountPath: /app/sources
         ports:
         - containerPort: {{ port }}
           name: http

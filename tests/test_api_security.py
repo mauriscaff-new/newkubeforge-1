@@ -5,12 +5,14 @@ from __future__ import annotations
 import importlib
 import io
 import sys
+import tempfile
 import zipfile
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
 from pathlib import Path
 
+import httpx
 import pytest
-from fastapi.testclient import TestClient
+import pytest_asyncio
 
 
 @pytest.fixture
@@ -25,10 +27,11 @@ def sandbox_source(tmp_path: Path) -> Path:
     return source_root
 
 
-@pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
+@pytest_asyncio.fixture
+async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[httpx.AsyncClient, None]:
     monkeypatch.setenv("REDIS_URL", "")
     monkeypatch.setenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
+    monkeypatch.setenv("KUBEFORGE_ALLOWED_SOURCE_DIR", tempfile.gettempdir())
 
     project_root = Path(__file__).resolve().parents[1]
     project_root_str = str(project_root)
@@ -39,13 +42,15 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]
     main_module = importlib.import_module("main")
     main_module = importlib.reload(main_module)
 
-    with TestClient(main_module.app) as test_client:
-        yield test_client
+    transport = httpx.ASGITransport(app=main_module.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as async_client:
+        yield async_client
 
 
-def test_root_e_health(client: TestClient) -> None:
-    root = client.get("/")
-    health = client.get("/health")
+@pytest.mark.asyncio
+async def test_root_e_health(client: httpx.AsyncClient) -> None:
+    root = await client.get("/")
+    health = await client.get("/health")
 
     assert root.status_code == 200
     assert root.json()["name"] == "KubeForge API"
@@ -53,8 +58,9 @@ def test_root_e_health(client: TestClient) -> None:
     assert health.json() == {"status": "ok"}
 
 
-def test_rejeita_git_url_invalido(client: TestClient) -> None:
-    response = client.post(
+@pytest.mark.asyncio
+async def test_rejeita_git_url_invalido(client: httpx.AsyncClient) -> None:
+    response = await client.post(
         "/analyze",
         json={"source_type": "git", "git_url": "http://example.com/repo.git"},
     )
@@ -63,8 +69,44 @@ def test_rejeita_git_url_invalido(client: TestClient) -> None:
     assert "git_url inválido" in response.json()["detail"]
 
 
-def test_aceita_folder_no_analyze(client: TestClient, sandbox_source: Path) -> None:
-    response = client.post(
+@pytest.mark.asyncio
+async def test_rejeita_folder_quando_desabilitado(
+    client: httpx.AsyncClient,
+    sandbox_source: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KUBEFORGE_ALLOWED_SOURCE_DIR", "")
+
+    response = await client.post(
+        "/analyze",
+        json={"source_type": "folder", "source_value": str(sandbox_source)},
+    )
+
+    assert response.status_code == 403
+    assert "desabilitado" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_rejeita_folder_fora_do_diretorio_permitido(
+    client: httpx.AsyncClient,
+    sandbox_source: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KUBEFORGE_ALLOWED_SOURCE_DIR", str(sandbox_source))
+    unauthorized_dir = sandbox_source.parent
+
+    response = await client.post(
+        "/analyze",
+        json={"source_type": "folder", "source_value": str(unauthorized_dir)},
+    )
+
+    assert response.status_code == 403
+    assert "caminho não permitido" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_aceita_folder_no_analyze(client: httpx.AsyncClient, sandbox_source: Path) -> None:
+    response = await client.post(
         "/analyze",
         json={"source_type": "folder", "source_value": str(sandbox_source)},
     )
@@ -76,14 +118,15 @@ def test_aceita_folder_no_analyze(client: TestClient, sandbox_source: Path) -> N
     assert body["analysis"]["framework"] == "fastapi"
 
 
-def test_aceita_zip_no_analyze(client: TestClient) -> None:
+@pytest.mark.asyncio
+async def test_aceita_zip_no_analyze(client: httpx.AsyncClient) -> None:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("project/requirements.txt", "flask==3.0.0\n")
         archive.writestr("project/app.py", "print('ok')\n")
     buffer.seek(0)
 
-    response = client.post(
+    response = await client.post(
         "/analyze",
         data={"source_type": "zip"},
         files={"file": ("project.zip", buffer.read(), "application/zip")},
@@ -93,23 +136,52 @@ def test_aceita_zip_no_analyze(client: TestClient) -> None:
     assert response.json()["analysis"]["language"] == "python"
 
 
-def test_aplica_rate_limit_no_analyze(client: TestClient, sandbox_source: Path) -> None:
+@pytest.mark.asyncio
+async def test_rejeita_zip_bomb(client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("project/requirements.txt", "flask==3.0.0\n")
+    buffer.seek(0)
+
+    original_infolist = zipfile.ZipFile.infolist
+
+    def fake_infolist(self: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
+        infos = original_infolist(self)
+        if infos:
+            infos[0].file_size = 101 * 1024 * 1024
+        return infos
+
+    monkeypatch.setattr(zipfile.ZipFile, "infolist", fake_infolist)
+
+    response = await client.post(
+        "/analyze",
+        data={"source_type": "zip"},
+        files={"file": ("zipbomb.zip", buffer.getvalue(), "application/zip")},
+    )
+
+    assert response.status_code == 400
+    assert "excede o limite" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_aplica_rate_limit_no_analyze(client: httpx.AsyncClient, sandbox_source: Path) -> None:
     payload = {"source_type": "folder", "source_value": str(sandbox_source)}
 
     for _ in range(10):
-        response = client.post("/analyze", json=payload)
+        response = await client.post("/analyze", json=payload)
         assert response.status_code == 200
 
-    limited_response = client.post("/analyze", json=payload)
+    limited_response = await client.post("/analyze", json=payload)
     assert limited_response.status_code == 429
 
 
-def test_validacoes_generate_request(client: TestClient) -> None:
-    replicas_invalid = client.post(
+@pytest.mark.asyncio
+async def test_validacoes_generate_request(client: httpx.AsyncClient) -> None:
+    replicas_invalid = await client.post(
         "/generate",
         json={"session_id": "abc", "replicas": 0},
     )
-    port_invalid = client.post(
+    port_invalid = await client.post(
         "/generate",
         json={"session_id": "abc", "port": 70000},
     )
@@ -118,15 +190,16 @@ def test_validacoes_generate_request(client: TestClient) -> None:
     assert port_invalid.status_code == 422
 
 
-def test_fluxo_generate_e_download(client: TestClient, sandbox_source: Path) -> None:
-    analyze_response = client.post(
+@pytest.mark.asyncio
+async def test_fluxo_generate_e_download(client: httpx.AsyncClient, sandbox_source: Path) -> None:
+    analyze_response = await client.post(
         "/analyze",
         json={"source_type": "folder", "source_value": str(sandbox_source)},
     )
     assert analyze_response.status_code == 200
     session_id = analyze_response.json()["session_id"]
 
-    generate_response = client.post(
+    generate_response = await client.post(
         "/generate",
         json={
             "session_id": session_id,
@@ -144,7 +217,7 @@ def test_fluxo_generate_e_download(client: TestClient, sandbox_source: Path) -> 
     assert "k8s/deployment.yaml" in generated_files
     assert "scripts/deploy.sh" in generated_files
 
-    download_response = client.post(
+    download_response = await client.post(
         "/download",
         json={"session_id": session_id},
     )

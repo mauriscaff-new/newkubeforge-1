@@ -35,6 +35,7 @@ SESSION_PREFIX = "kubeforge:session:"
 SESSION_INDEX_KEY = "kubeforge:sessions:index"
 SESSION_TEMPDIR_KEY = "kubeforge:sessions:tempdirs"
 TEMPLATE_FOLDERS = ("python", "node", "java", "go", "dotnet", "k8s")
+MAX_ZIP_UNCOMPRESSED_BYTES = 100 * 1024 * 1024  # 100 MB
 
 
 class AnalyzeRequest(BaseModel):
@@ -246,8 +247,35 @@ def _validate_git_url(git_url: str) -> None:
     raise HTTPException(status_code=400, detail="git_url inválido. Use apenas https:// ou git@.")
 
 
+def _get_allowed_source_dir() -> Path | None:
+    """Retorna diretório base permitido para source_type=folder, ou None se desabilitado."""
+
+    raw = os.getenv("KUBEFORGE_ALLOWED_SOURCE_DIR", "").strip()
+    if not raw:
+        return None
+    return Path(raw).expanduser().resolve()
+
+
+def _validate_folder_source(source_path: Path) -> None:
+    """Bloqueia source_type=folder quando fora do diretório permitido."""
+
+    allowed_dir = _get_allowed_source_dir()
+    if allowed_dir is None:
+        raise HTTPException(
+            status_code=403,
+            detail="source_type=folder está desabilitado. Configure KUBEFORGE_ALLOWED_SOURCE_DIR para habilitar.",
+        )
+    try:
+        source_path.relative_to(allowed_dir)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Caminho não permitido. Apenas subdiretórios de '{allowed_dir}' são aceitos.",
+        ) from exc
+
+
 def _extract_zip_safely(zip_path: Path, destination: Path) -> None:
-    """Extrai zip protegendo contra path traversal."""
+    """Extrai zip protegendo contra path traversal e ZIP bombs."""
 
     destination_resolved = destination.resolve()
 
@@ -255,6 +283,16 @@ def _extract_zip_safely(zip_path: Path, destination: Path) -> None:
         with zipfile.ZipFile(zip_path, "r") as archive:
             if not archive.namelist():
                 raise HTTPException(status_code=400, detail="Arquivo ZIP vazio.")
+
+            # Proteção contra ZIP bomb: soma tamanho descomprimido de todos os membros.
+            total_uncompressed = sum(m.file_size for m in archive.infolist())
+            if total_uncompressed > MAX_ZIP_UNCOMPRESSED_BYTES:
+                limit_mb = MAX_ZIP_UNCOMPRESSED_BYTES // (1024 * 1024)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"ZIP excede o limite de {limit_mb}MB descomprimido.",
+                )
+
             for member in archive.infolist():
                 target_path = (destination / member.filename).resolve()
                 try:
@@ -291,6 +329,7 @@ async def _prepare_source(payload: AnalyzeRequest, upload: UploadFile | None) ->
         if not payload.source_value:
             raise HTTPException(status_code=400, detail="source_value é obrigatório para source_type=folder.")
         source_path = Path(payload.source_value).expanduser().resolve()
+        _validate_folder_source(source_path)
         if not source_path.exists() or not source_path.is_dir():
             raise HTTPException(status_code=400, detail="Pasta informada não existe ou não é diretório.")
         try:

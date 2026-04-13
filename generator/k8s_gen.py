@@ -167,6 +167,9 @@ def generate(context: dict[str, Any]) -> dict[str, str]:
         rendered_files["secret.yaml"] = _render_template(environment, "secret.j2", render_context)
     if render_context["enable_hpa"]:
         rendered_files["hpa.yaml"] = _render_template(environment, "hpa.j2", render_context)
+    # PDB só faz sentido com 2+ réplicas — com 1 réplica, minAvailable=1 bloqueia qualquer dreno.
+    if render_context["replicas"] >= 2:
+        rendered_files["pdb.yaml"] = _render_template(environment, "pdb.j2", render_context)
     if render_context["enable_network_policy"]:
         rendered_files["networkpolicy.yaml"] = _render_template(environment, "networkpolicy.j2", render_context)
 

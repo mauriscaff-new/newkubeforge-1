@@ -158,6 +158,7 @@ uv run mypy --ignore-missing-imports .
 - Conceitos Docker: `docs/docker-fundamentos.md`
 - Conceitos Kubernetes: `docs/kubernetes-fundamentos.md`
 - Arquitetura do sistema: `docs/ARCHITECTURE.md`
+- Guia prático para subir aplicações: `docs/SUBIR_APLICACOES.md`
 
 ## Licenca
 

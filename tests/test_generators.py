@@ -91,6 +91,14 @@ def test_k8s_gen_separa_config_e_secret() -> None:
     assert "maxReplicas: 6" in files["hpa.yaml"]
     assert "configMapRef" in files["deployment.yaml"]
     assert "secretRef" in files["deployment.yaml"]
+    assert "runAsNonRoot: true" in files["deployment.yaml"]
+    assert "readOnlyRootFilesystem: true" in files["deployment.yaml"]
+    assert "mountPath: /tmp" in files["deployment.yaml"]
+    assert "mountPath: /app/sources" in files["deployment.yaml"]
+    assert "name: tmp-volume" in files["deployment.yaml"]
+    assert "sizeLimit: 500Mi" in files["deployment.yaml"]
+    assert "name: sources-volume" in files["deployment.yaml"]
+    assert "sizeLimit: 200Mi" in files["deployment.yaml"]
     assert "configmap.yaml" in files["kustomization.yaml"]
     assert "secret.yaml" in files["kustomization.yaml"]
 
@@ -132,3 +140,31 @@ def test_k8s_gen_respeita_max_replicas_contexto() -> None:
 
     assert "hpa.yaml" in files
     assert "maxReplicas: 10" in files["hpa.yaml"]
+
+
+def test_gera_pdb_quando_replicas_dois() -> None:
+    context = {
+        "app_name": "demo",
+        "image": "demo:latest",
+        "port": 8080,
+        "replicas": 2,
+    }
+
+    files = k8s_gen.generate(context)
+
+    assert "pdb.yaml" in files
+    assert "PodDisruptionBudget" in files["pdb.yaml"]
+    assert "minAvailable: 1" in files["pdb.yaml"]
+
+
+def test_nao_gera_pdb_quando_replicas_um() -> None:
+    context = {
+        "app_name": "demo",
+        "image": "demo:latest",
+        "port": 8080,
+        "replicas": 1,
+    }
+
+    files = k8s_gen.generate(context)
+
+    assert "pdb.yaml" not in files
