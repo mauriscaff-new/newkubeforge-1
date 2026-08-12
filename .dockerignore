@@ -8,6 +8,9 @@ venv
 __pycache__
 .pytest_cache
 .mypy_cache
+.ruff_cache
+.uv-cache
+.uv-cache-local
 *.pyc
 *.pyo
 *.pyd
@@ -25,10 +28,12 @@ htmlcov
 *.key
 *.p12
 
-# Editor / sistema
+# Editor / sistema / ferramentas de agente
 .vscode
 .idea
 .DS_Store
+.claude
+.github
 
 # Builds e docs não necessários na imagem de runtime
 dist

@@ -4,11 +4,17 @@ FROM node:20-alpine
 # Define diretório de trabalho da aplicação.
 WORKDIR /app
 
+{% if pm_needs_corepack %}
+# Habilita o corepack com versão fixa: sem "prepare" ele instalaria a versão
+# mais recente do gerenciador, que pode não rodar no Node desta imagem base.
+RUN corepack enable && corepack prepare {{ pm_corepack_spec }} --activate
+
+{% endif %}
 # Copia manifestos de dependência antes do código para otimizar cache.
-COPY package*.json ./
+COPY {{ pm_copy_manifests }} ./
 
 # Instala somente dependências de produção.
-RUN npm ci --omit=dev
+RUN {{ pm_install_prod }}
 
 # Copia o código da aplicação para o container.
 COPY --chown=node:node . .

@@ -83,17 +83,29 @@ def _detect_node(files_by_name: dict[str, Path]) -> dict[str, Any] | None:
     elif "express" in dep_names:
         framework = "express"
 
+    # O lockfile define tanto o gerenciador quanto a estrategia de instalacao:
+    # comandos como "npm ci" exigem lockfile e falham sem ele.
     build_tool = "npm"
+    has_lockfile = "package-lock.json" in files_by_name
     if "pnpm-lock.yaml" in files_by_name:
         build_tool = "pnpm"
+        has_lockfile = True
     elif "yarn.lock" in files_by_name:
         build_tool = "yarn"
+        has_lockfile = True
+
+    # Campo "packageManager" (ex.: "pnpm@9.15.4") e a fonte canonica da versao
+    # usada pelo corepack; sem ele o corepack baixaria sempre a mais recente.
+    package_manager = raw_package.get("packageManager")
+    package_manager = package_manager.strip() if isinstance(package_manager, str) else ""
 
     return {
         "language": "node",
         "framework": framework,
         "build_tool": build_tool,
         "has_build_step": has_build_step,
+        "has_lockfile": has_lockfile,
+        "package_manager": package_manager,
     }
 
 

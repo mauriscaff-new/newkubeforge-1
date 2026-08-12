@@ -49,6 +49,47 @@ def test_detect_node_nestjs_com_yarn(tmp_path: Path) -> None:
     assert result["has_build_step"] is True
 
 
+def test_detect_node_sem_lockfile_marca_has_lockfile_false(tmp_path: Path) -> None:
+    """Projeto npm sem package-lock.json nao pode usar instalacao travada."""
+
+    package_json = {
+        "dependencies": {"express": "4.19.2"},
+        "scripts": {"start": "node server.js"},
+    }
+    _write(tmp_path / "package.json", json.dumps(package_json))
+
+    result = detect(str(tmp_path))
+
+    assert result["build_tool"] == "npm"
+    assert result["has_lockfile"] is False
+
+
+def test_detect_node_com_package_lock_marca_has_lockfile_true(tmp_path: Path) -> None:
+    """package-lock.json presente habilita instalacao reprodutivel."""
+
+    package_json = {"dependencies": {"express": "4.19.2"}}
+    _write(tmp_path / "package.json", json.dumps(package_json))
+    _write(tmp_path / "package-lock.json", "{}")
+
+    result = detect(str(tmp_path))
+
+    assert result["build_tool"] == "npm"
+    assert result["has_lockfile"] is True
+
+
+def test_detect_node_pnpm_marca_has_lockfile_true(tmp_path: Path) -> None:
+    """pnpm-lock.yaml define gerenciador e presenca de lockfile."""
+
+    package_json = {"dependencies": {"fastify": "4.0.0"}}
+    _write(tmp_path / "package.json", json.dumps(package_json))
+    _write(tmp_path / "pnpm-lock.yaml", "lockfileVersion: '9.0'")
+
+    result = detect(str(tmp_path))
+
+    assert result["build_tool"] == "pnpm"
+    assert result["has_lockfile"] is True
+
+
 def test_detect_python_fastapi(tmp_path: Path) -> None:
     _write(tmp_path / "requirements.txt", "fastapi==0.111.0\nuvicorn==0.30.0\n")
 

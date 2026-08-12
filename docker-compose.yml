@@ -16,11 +16,27 @@ services:
     volumes:
       - ./:/app
       - /app/.venv
+      # ATENCAO - RISCO DE SEGURANCA:
+      # O socket do Docker da acesso equivalente a root NO HOST. Qualquer falha
+      # de autenticacao/validacao na API vira comprometimento total da maquina.
+      # Necessario porque /deploy-full executa "docker build" e "docker save"
+      # localmente. Remova este mount se nao for usar /deploy-full.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Em um host com k3s, descomente tambem a linha abaixo: a etapa 4 do
+      # /deploy-full roda "k3s ctr images import", que fala com o containerd
+      # do k3s. Mantida comentada porque o socket nao existe nesta maquina.
+      # - /run/k3s/containerd/containerd.sock:/run/k3s/containerd/containerd.sock
+    # O socket e root:root modo 660 e o processo roda como uid 1001; sem o grupo
+    # 0 o cliente docker recebe "permission denied" ao abrir o socket.
+    group_add:
+      - "0"
     depends_on:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    command: ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    # uvicorn vem do .venv da imagem, ja presente no PATH.
+    # O uv existe apenas no estagio builder e nao esta na imagem final.
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   redis:
     image: redis:7-alpine

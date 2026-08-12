@@ -4,11 +4,17 @@ FROM node:20-alpine AS builder
 # Define diretório de build.
 WORKDIR /app
 
+{% if pm_needs_corepack %}
+# Habilita o corepack com versão fixa: sem "prepare" ele instalaria a versão
+# mais recente do gerenciador, que pode não rodar no Node desta imagem base.
+RUN corepack enable && corepack prepare {{ pm_corepack_spec }} --activate
+
+{% endif %}
 # Copia manifestos de dependência para maximizar cache.
-COPY package*.json ./
+COPY {{ pm_copy_manifests }} ./
 
 # Instala dependências de desenvolvimento e produção para compilar.
-RUN npm ci
+RUN {{ pm_install_all }}
 
 # Copia todo o código-fonte.
 COPY . .
@@ -17,7 +23,7 @@ COPY . .
 RUN npm run build
 
 # Remove dependências de desenvolvimento antes de exportar para runtime.
-RUN npm prune --omit=dev
+RUN {{ pm_prune_prod }}
 
 # Estágio de runtime: mantém apenas o necessário para executar.
 FROM node:20-alpine AS runner

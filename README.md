@@ -109,6 +109,7 @@ curl -X POST http://localhost:8000/download \
 | `k8s/kustomization.yaml` | Entrada Kustomize para aplicar os manifests. |
 | `k8s/configmap.yaml` | Gerado quando existem variaveis nao sensiveis. |
 | `k8s/secret.yaml` | Gerado quando existem variaveis sensiveis por heuristica. |
+| `k8s/pdb.yaml` | PodDisruptionBudget para manter disponibilidade durante drains. |
 | `k8s/hpa.yaml` | Gerado quando `enable_hpa=true`. |
 | `k8s/networkpolicy.yaml` | Gerado quando `enable_network_policy=true`. |
 | `scripts/build-push.sh` | Build e push da imagem Docker. |
@@ -133,6 +134,25 @@ Manifestos prontos para deploy da propria API estao em `k8s/`:
 ```bash
 kubectl apply -k k8s/
 ```
+
+## Deploy remoto via SSH (3 etapas)
+
+1. `POST /push-to-server`
+2. `POST /build-image`
+3. `POST /deploy`
+
+Campos comuns nas 3 etapas:
+
+- `session_id`
+- `ssh_host`
+- `ssh_user`
+- autenticação SSH: `ssh_key` (base64) **ou** `ssh_password`
+
+Campos adicionais:
+
+- etapa 1 (opcional): `git_url`, `git_branch` para clonar repo no servidor Linux antes de aplicar os artefatos gerados
+- etapa 2: `image_name`
+- etapa 3: `kubeconfig` (base64)
 
 ## Como adicionar suporte a nova linguagem
 

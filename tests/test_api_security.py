@@ -27,6 +27,15 @@ def sandbox_source(tmp_path: Path) -> Path:
     return source_root
 
 
+@pytest.fixture
+def local_zip_file(tmp_path: Path) -> Path:
+    zip_path = tmp_path / "project.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("project/requirements.txt", "fastapi==0.115.0\n")
+        archive.writestr("project/main.py", "print('ok')\n")
+    return zip_path
+
+
 @pytest_asyncio.fixture
 async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[httpx.AsyncClient, None]:
     monkeypatch.setenv("REDIS_URL", "")
@@ -105,6 +114,41 @@ async def test_rejeita_folder_fora_do_diretorio_permitido(
 
 
 @pytest.mark.asyncio
+async def test_rejeita_zip_source_value_quando_desabilitado(
+    client: httpx.AsyncClient,
+    local_zip_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KUBEFORGE_ALLOWED_SOURCE_DIR", "")
+
+    response = await client.post(
+        "/analyze",
+        json={"source_type": "zip", "source_value": str(local_zip_file)},
+    )
+
+    assert response.status_code == 403
+    assert "source_type=zip com source_value está desabilitado" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_rejeita_zip_source_value_fora_do_diretorio_permitido(
+    client: httpx.AsyncClient,
+    local_zip_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    allowed_root = local_zip_file.parent / "allowed"
+    monkeypatch.setenv("KUBEFORGE_ALLOWED_SOURCE_DIR", str(allowed_root))
+
+    response = await client.post(
+        "/analyze",
+        json={"source_type": "zip", "source_value": str(local_zip_file)},
+    )
+
+    assert response.status_code == 403
+    assert "caminho não permitido" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
 async def test_aceita_folder_no_analyze(client: httpx.AsyncClient, sandbox_source: Path) -> None:
     response = await client.post(
         "/analyze",
@@ -161,6 +205,31 @@ async def test_rejeita_zip_bomb(client: httpx.AsyncClient, monkeypatch: pytest.M
 
     assert response.status_code == 400
     assert "excede o limite" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_rejeita_zip_upload_comprimido_maior_que_limite(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import main as main_module
+
+    monkeypatch.setattr(main_module, "MAX_ZIP_COMPRESSED_BYTES", 128)
+
+    payload = bytes((index % 251 for index in range(8_000)))
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("project/big.bin", payload)
+    buffer.seek(0)
+
+    response = await client.post(
+        "/analyze",
+        data={"source_type": "zip"},
+        files={"file": ("big.zip", buffer.getvalue(), "application/zip")},
+    )
+
+    assert response.status_code == 400
+    assert "comprimido" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio

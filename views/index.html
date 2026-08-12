@@ -38,8 +38,12 @@
       <div class="h-8 w-8 rounded-full bg-surface-container-high border border-outline-variant/30 flex items-center justify-center overflow-hidden">
         <span class="material-symbols-outlined text-primary text-sm">person</span>
       </div>
-      <button class="bg-gradient-to-br from-primary to-primary-container text-on-primary-fixed px-5 py-1.5 rounded-lg font-headline font-bold text-sm active:scale-95 transition-transform">
-        Deploy
+      <button
+        @click="quickDeployFromHeader()"
+        :disabled="deploying"
+        class="bg-gradient-to-br from-primary to-primary-container text-on-primary-fixed px-5 py-1.5 rounded-lg font-headline font-bold text-sm active:scale-95 transition-transform disabled:opacity-60 disabled:cursor-not-allowed">
+        <span x-show="!deploying">Deploy</span>
+        <span x-show="deploying">Deploy...</span>
       </button>
     </div>
   </header>
@@ -783,6 +787,170 @@
               </li>
             </ul>
           </div>
+
+          <div
+            x-ref="deploySection"
+            x-show="sessionId && Object.keys(generatedFiles).length > 0"
+            class="bg-surface-container-low p-6 rounded-xl border border-primary/10">
+            <!-- Deploy remoto em Linux usando endpoints reais da API -->
+            <div class="flex items-center gap-2 mb-4">
+              <span class="material-symbols-outlined text-tertiary icon-fill">rocket_launch</span>
+              <h4 class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Deploy Remoto (Linux)</h4>
+            </div>
+
+            <div class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  @click="serverDeploy.mode = 'k8s'"
+                  class="px-3 py-2 rounded-lg border text-sm font-semibold transition-colors"
+                  :class="serverDeploy.mode === 'k8s' ? 'bg-primary/15 border-primary/40 text-primary' : 'bg-surface-container-high border-outline-variant/20 text-on-surface-variant'">
+                  Kubernetes (3 etapas)
+                </button>
+                <button
+                  type="button"
+                  @click="serverDeploy.mode = 'docker'"
+                  class="px-3 py-2 rounded-lg border text-sm font-semibold transition-colors"
+                  :class="serverDeploy.mode === 'docker' ? 'bg-primary/15 border-primary/40 text-primary' : 'bg-surface-container-high border-outline-variant/20 text-on-surface-variant'">
+                  Docker Compose (1 etapa)
+                </button>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-xs font-semibold text-on-surface-variant block mb-1">SSH Host</label>
+                  <input x-model="serverDeploy.ssh_host" placeholder="203.0.113.10"
+                    class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-on-surface-variant block mb-1">SSH User</label>
+                  <input x-model="serverDeploy.ssh_user" placeholder="root"
+                    class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-xs font-semibold text-on-surface-variant block mb-1">Autenticação</label>
+                  <select x-model="serverDeploy.auth_mode"
+                    class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40">
+                    <option value="password">Senha</option>
+                    <option value="key">Chave privada</option>
+                  </select>
+                </div>
+                <div x-show="serverDeploy.auth_mode === 'password'">
+                  <label class="text-xs font-semibold text-on-surface-variant block mb-1">SSH Password</label>
+                  <input x-model="serverDeploy.ssh_password" type="password" placeholder="********"
+                    class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+              </div>
+
+              <div x-show="serverDeploy.auth_mode === 'key'">
+                <label class="text-xs font-semibold text-on-surface-variant block mb-1">SSH Private Key</label>
+                <textarea x-model="serverDeploy.ssh_key" rows="6" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                  class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-3 text-xs text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"></textarea>
+                <p class="text-xs text-on-surface-variant mt-1">Aceita conteúdo bruto da chave ou base64.</p>
+              </div>
+
+              <div x-show="serverDeploy.mode === 'k8s'" class="space-y-3 border border-outline-variant/15 rounded-xl p-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs font-semibold text-on-surface-variant block mb-1">Git URL (opcional)</label>
+                    <input x-model="serverDeploy.git_url" placeholder="https://github.com/org/repo.git"
+                      class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  </div>
+                  <div>
+                    <label class="text-xs font-semibold text-on-surface-variant block mb-1">Git Branch (opcional)</label>
+                    <input x-model="serverDeploy.git_branch" placeholder="main"
+                      class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  </div>
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-on-surface-variant block mb-1">Nome da Imagem</label>
+                  <input x-model="serverDeploy.image_name" placeholder="registry/meu-app:latest"
+                    class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-on-surface-variant block mb-1">Kubeconfig</label>
+                  <textarea x-model="serverDeploy.kubeconfig" rows="6" placeholder="Cole o conteúdo do kubeconfig (yaml ou base64)"
+                    class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-3 text-xs text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"></textarea>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <button type="button" @click="uploadFilesToServer()"
+                    :disabled="deploying || !canUploadStep"
+                    class="px-3 py-2 rounded-lg bg-primary/90 text-on-primary-fixed text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                    1. Upload
+                  </button>
+                  <button type="button" @click="buildImageOnServer()"
+                    :disabled="deploying || !canBuildStep"
+                    class="px-3 py-2 rounded-lg bg-tertiary/90 text-on-tertiary-container text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                    2. Build
+                  </button>
+                  <button type="button" @click="deployFromServer()"
+                    :disabled="deploying || !canDeployStep"
+                    class="px-3 py-2 rounded-lg bg-secondary/90 text-secondary-fixed text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                    3. Deploy K8s
+                  </button>
+                </div>
+              </div>
+
+              <div x-show="serverDeploy.mode === 'docker'" class="space-y-3 border border-outline-variant/15 rounded-xl p-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs font-semibold text-on-surface-variant block mb-1">Remote Path</label>
+                    <input x-model="serverDeploy.remote_path" placeholder="~/kubeforge-app"
+                      class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  </div>
+                  <div>
+                    <label class="text-xs font-semibold text-on-surface-variant block mb-1">App Name (opcional)</label>
+                    <input x-model="serverDeploy.app_name" placeholder="meu-app"
+                      class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs font-semibold text-on-surface-variant block mb-1">Host Port (opcional)</label>
+                    <input x-model="serverDeploy.host_port" type="number" min="1" max="65535" placeholder="8080"
+                      class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  </div>
+                  <div>
+                    <label class="text-xs font-semibold text-on-surface-variant block mb-1">Container Port (opcional)</label>
+                    <input x-model="serverDeploy.container_port" type="number" min="1" max="65535" placeholder="8000"
+                      class="w-full rounded-xl bg-surface-container-high border border-outline-variant/20 p-2.5 text-sm text-on-surface font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  </div>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-on-surface-variant">
+                  <input type="checkbox" x-model="serverDeploy.use_sudo" class="accent-primary">
+                  Usar sudo para docker compose
+                </label>
+                <button type="button" @click="deployDockerRemote()"
+                  :disabled="deploying || !canDockerDeploy"
+                  class="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-primary to-primary-container text-on-primary-fixed font-headline font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  Deploy Docker Remoto
+                </button>
+              </div>
+
+              <div
+                x-ref="deployTerminal"
+                class="bg-black text-green-400 font-mono text-sm p-4 rounded-lg h-64 overflow-y-auto border border-outline-variant/30 whitespace-pre-wrap">
+                <template x-if="deployLogs.length === 0">
+                  <span class="text-green-700">Aguardando execução...</span>
+                </template>
+                <template x-for="(line, idx) in deployLogs" :key="idx">
+                  <div x-text="line"></div>
+                </template>
+              </div>
+
+              <div x-show="deployError" class="px-3 py-2 rounded-lg bg-error/20 text-error text-sm font-semibold" x-text="deployError"></div>
+              <div x-show="deployOutput" class="px-3 py-2 rounded-lg bg-surface-container-high text-on-surface text-xs font-mono whitespace-pre-wrap" x-text="deployOutput"></div>
+              <div x-show="deployDone && deploySuccess" class="px-3 py-2 rounded-lg bg-tertiary/20 text-tertiary text-sm font-semibold">
+                Deploy concluído com sucesso.
+              </div>
+              <div x-show="deployDone && !deploySuccess" class="px-3 py-2 rounded-lg bg-error/20 text-error text-sm font-semibold">
+                Deploy finalizou com erro.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -871,6 +1039,37 @@
         activeFile: 'Dockerfile',
         generatedFiles: {},
         sessionId: '',
+        // Estado do fluxo Full Deploy
+        deployGitUrl: '',
+        deployAppName: '',
+        deployTag: 'latest',
+        deployKubeconfig: '',
+        deployLogs: [],
+        deploying: false,
+        deployDone: false,
+        deploySuccess: false,
+        serverDeploy: {
+          mode: 'k8s',
+          ssh_host: '',
+          ssh_user: '',
+          git_url: '',
+          git_branch: '',
+          auth_mode: 'password',
+          ssh_key: '',
+          ssh_password: '',
+          image_name: '',
+          kubeconfig: '',
+          remote_path: '~/kubeforge-app',
+          app_name: '',
+          host_port: '',
+          container_port: '',
+          use_sudo: false,
+        },
+        deployStage: 0,
+        deployingStep: '',
+        deployOutput: '',
+        deployError: '',
+        deployLog: '',
         imageSearch: { query: '', results: [], loading: false, show: false, timer: null, field: null },
         _lastAutoImage: '',
 
@@ -888,6 +1087,25 @@
             s3,
             { label: 'Revisão',     icon: 'fact_check' },
           ];
+        },
+
+        get canUploadStep() {
+          const hasConnection = Boolean(this.serverDeploy.ssh_host.trim() && this.serverDeploy.ssh_user.trim());
+          if (!hasConnection) return false;
+          if (this.serverDeploy.auth_mode === 'key') return Boolean(this.serverDeploy.ssh_key.trim());
+          return Boolean(this.serverDeploy.ssh_password);
+        },
+
+        get canBuildStep() {
+          return this.deployStage >= 1 && Boolean(this.serverDeploy.image_name.trim()) && this.canUploadStep;
+        },
+
+        get canDeployStep() {
+          return this.deployStage >= 2 && Boolean(this.serverDeploy.kubeconfig.trim()) && this.canUploadStep;
+        },
+
+        get canDockerDeploy() {
+          return this.canUploadStep && Boolean(this.serverDeploy.remote_path.trim());
         },
 
         sourceOptions: [
@@ -1035,6 +1253,66 @@
           }
         },
 
+        _appendDeployLog(message) {
+          const ts = new Date().toISOString();
+          const line = `[${ts}] ${message}`;
+          this.deployLog = this.deployLog ? `${this.deployLog}\n${line}` : line;
+          this.deployLogs.push(line);
+          this.$nextTick(() => {
+            const terminal = this.$refs.deployTerminal;
+            if (terminal) terminal.scrollTop = terminal.scrollHeight;
+          });
+        },
+
+        // Adiciona linha no terminal do Full Deploy e mantém scroll no final.
+        _appendFullDeployLog(message) {
+          this.deployLogs.push(message);
+          this.$nextTick(() => {
+            const terminal = this.$refs.deployTerminal;
+            if (terminal) terminal.scrollTop = terminal.scrollHeight;
+          });
+        },
+
+        _parseJsonSafe(raw) {
+          if (!raw || typeof raw !== 'string') return null;
+          try { return JSON.parse(raw); } catch { return null; }
+        },
+
+        _encodeBase64Utf8(value) {
+          const bytes = new TextEncoder().encode(value);
+          let binary = '';
+          for (const byte of bytes) binary += String.fromCharCode(byte);
+          return btoa(binary);
+        },
+
+        _toBase64IfNeeded(value, markers) {
+          const trimmed = String(value || '').trim();
+          if (!trimmed) return '';
+
+          const compact = trimmed.replace(/\s+/g, '');
+          const looksLikeBase64 = /^[A-Za-z0-9+/=]+$/.test(compact) && compact.length % 4 === 0;
+          if (looksLikeBase64) {
+            try {
+              const decoded = atob(compact);
+              if (markers.some((marker) => decoded.includes(marker))) {
+                return compact;
+              }
+            } catch {}
+          }
+
+          return this._encodeBase64Utf8(trimmed);
+        },
+
+        _parseOptionalPort(value, fieldName) {
+          const raw = String(value || '').trim();
+          if (!raw) return null;
+          const num = Number(raw);
+          if (!Number.isInteger(num) || num < 1 || num > 65535) {
+            throw new Error(`${fieldName} deve ser um inteiro entre 1 e 65535.`);
+          }
+          return num;
+        },
+
         async nextStep() {
           this.error = '';
           if (this.step === 0) {
@@ -1161,6 +1439,27 @@
 
             this.generatedFiles = data.file_contents || data.files || {};
             this.activeFile = this.generatedFiles['Dockerfile'] ? 'Dockerfile' : (Object.keys(this.generatedFiles)[0] || 'Dockerfile');
+            this.deployGitUrl = this.form.git_url || '';
+            this.deployAppName = (this.form.app_name || '').trim();
+            this.deployTag = this.deployTag || 'latest';
+            this.deployKubeconfig = '';
+            this.deployLogs = [];
+            this.deployDone = false;
+            this.deploySuccess = false;
+            this.deploying = false;
+            this.deployStage = 0;
+            this.deployOutput = '';
+            this.deployError = '';
+            this.deployLog = '';
+            this.deployingStep = '';
+            this.serverDeploy.git_url = this.form.git_url || '';
+            this.serverDeploy.git_branch = '';
+            this.serverDeploy.image_name = image;
+            this.serverDeploy.kubeconfig = '';
+            this.serverDeploy.app_name = (this.form.app_name || '').trim();
+            this.serverDeploy.remote_path = this.serverDeploy.remote_path || '~/kubeforge-app';
+            this.serverDeploy.container_port = String(payload.port || this.form.port || 3000);
+            this.serverDeploy.host_port = String(payload.port || this.form.port || 3000);
             this.step = 4;
           } catch (e) {
             this.error = e.message;
@@ -1192,6 +1491,306 @@
           } catch (e) {
             this.error = e.message;
           }
+        },
+
+        // Executa o fluxo completo em stream lendo saída incremental do backend.
+        async fullDeploy() {
+          this.deploying = true;
+          this.deployLogs = [];
+          this.deployDone = false;
+          this.deploySuccess = false;
+          this.error = '';
+
+          try {
+            let kubeB64 = '';
+            try {
+              kubeB64 = btoa(this.deployKubeconfig);
+            } catch {
+              const bytes = new TextEncoder().encode(this.deployKubeconfig);
+              let binary = '';
+              for (const byte of bytes) binary += String.fromCharCode(byte);
+              kubeB64 = btoa(binary);
+            }
+
+            const response = await fetch('/deploy-full', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                session_id: this.sessionId,
+                git_url: this.deployGitUrl,
+                app_name: this.deployAppName,
+                tag: this.deployTag || 'latest',
+                kubeconfig: kubeB64,
+              }),
+            });
+
+            if (!response.body) {
+              throw new Error('Servidor não retornou stream de logs.');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let pending = '';
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              pending += decoder.decode(value, { stream: true });
+              const lines = pending.split('\n');
+              pending = lines.pop() || '';
+
+              for (const rawLine of lines) {
+                const line = rawLine.trimEnd();
+                if (!line) continue;
+                this._appendFullDeployLog(line);
+              }
+            }
+
+            pending += decoder.decode();
+            const tail = pending.trim();
+            if (tail) {
+              for (const rawLine of tail.split('\n')) {
+                const line = rawLine.trimEnd();
+                if (!line) continue;
+                this._appendFullDeployLog(line);
+              }
+            }
+          } catch (e) {
+            const msg = e?.message || 'Erro inesperado no Full Deploy.';
+            this._appendFullDeployLog(`[ERRO] ${msg}`);
+            this.error = msg;
+          } finally {
+            this.deployDone = true;
+            const lastLine = this.deployLogs.length ? this.deployLogs[this.deployLogs.length - 1] : '';
+            this.deploySuccess = lastLine.includes('[CONCLUÍDO]');
+            this.deploying = false;
+          }
+        },
+
+        _serverBasePayload() {
+          const payload = {
+            session_id: this.sessionId,
+            ssh_host: this.serverDeploy.ssh_host.trim(),
+            ssh_user: this.serverDeploy.ssh_user.trim(),
+            git_url: this.serverDeploy.git_url.trim() || null,
+            git_branch: this.serverDeploy.git_branch.trim() || null,
+          };
+          if (this.serverDeploy.auth_mode === 'key') {
+            payload.ssh_key = this._toBase64IfNeeded(this.serverDeploy.ssh_key, [
+              'BEGIN OPENSSH PRIVATE KEY',
+              'BEGIN RSA PRIVATE KEY',
+              'BEGIN EC PRIVATE KEY',
+              'BEGIN PRIVATE KEY',
+            ]);
+            payload.ssh_password = null;
+          } else {
+            payload.ssh_key = null;
+            payload.ssh_password = this.serverDeploy.ssh_password;
+          }
+          return {
+            ...payload,
+          };
+        },
+
+        async uploadFilesToServer() {
+          this.deploying = true;
+          this.deployingStep = 'upload';
+          this.deployError = '';
+          this.error = '';
+          this.deployDone = false;
+          this.deploySuccess = false;
+          if (!this.deployLog) this.deployLog = '';
+          try {
+            const payload = this._serverBasePayload();
+            this._appendDeployLog(`POST /push-to-server host=${payload.ssh_host} user=${payload.ssh_user} git_clone=${payload.git_url ? 'yes' : 'no'}`);
+            const res = await fetch('/push-to-server', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const raw = await res.text();
+            const data = this._parseJsonSafe(raw) || {};
+            this._appendDeployLog(`HTTP ${res.status} ${res.statusText}`);
+            if (raw && raw.trim()) this._appendDeployLog(raw.slice(0, 5000));
+
+            if (!res.ok) {
+              this.deployError = data.detail || raw || 'Falha no upload para servidor.';
+              this.error = this.deployError;
+              return;
+            }
+            this.deployStage = Math.max(this.deployStage, 1);
+            this.deployOutput = data.remote_path || '';
+            this._appendDeployLog(`Upload concluído em ${data.remote_path || 'path não informado'}`);
+          } catch (e) {
+            this.deployError = e?.message || 'Erro inesperado no upload.';
+            this.error = this.deployError;
+            this._appendDeployLog(`Erro local: ${this.deployError}`);
+          } finally {
+            this.deploying = false;
+            this.deployingStep = '';
+          }
+        },
+
+        async buildImageOnServer() {
+          this.deploying = true;
+          this.deployingStep = 'build';
+          this.deployError = '';
+          this.error = '';
+          this.deployDone = false;
+          this.deploySuccess = false;
+          try {
+            const payload = {
+              ...this._serverBasePayload(),
+              image_name: this.serverDeploy.image_name.trim(),
+            };
+            this._appendDeployLog(`POST /build-image image=${payload.image_name}`);
+            const res = await fetch('/build-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const raw = await res.text();
+            const data = this._parseJsonSafe(raw) || {};
+            this._appendDeployLog(`HTTP ${res.status} ${res.statusText}`);
+            if (raw && raw.trim()) this._appendDeployLog(raw.slice(0, 5000));
+
+            if (!res.ok) {
+              this.deployError = data.detail || raw || 'Falha no build da imagem.';
+              this.error = this.deployError;
+              return;
+            }
+            this.deployStage = Math.max(this.deployStage, 2);
+            this.deployOutput = data.output || '';
+            this._appendDeployLog(`Build concluído para ${data.image || payload.image_name}`);
+          } catch (e) {
+            this.deployError = e?.message || 'Erro inesperado no build.';
+            this.error = this.deployError;
+            this._appendDeployLog(`Erro local: ${this.deployError}`);
+          } finally {
+            this.deploying = false;
+            this.deployingStep = '';
+          }
+        },
+
+        async deployFromServer() {
+          this.deploying = true;
+          this.deployingStep = 'deploy';
+          this.deployError = '';
+          this.error = '';
+          this.deployDone = false;
+          this.deploySuccess = false;
+          try {
+            const payload = {
+              ...this._serverBasePayload(),
+              kubeconfig: this._toBase64IfNeeded(this.serverDeploy.kubeconfig, ['apiVersion:', 'clusters:', 'users:']),
+            };
+            this._appendDeployLog('POST /deploy');
+            const res = await fetch('/deploy', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const raw = await res.text();
+            const data = this._parseJsonSafe(raw) || {};
+            this._appendDeployLog(`HTTP ${res.status} ${res.statusText}`);
+            if (raw && raw.trim()) this._appendDeployLog(raw.slice(0, 5000));
+
+            if (!res.ok) {
+              this.deployError = data.detail || raw || 'Falha no deploy remoto.';
+              this.error = this.deployError;
+              this.deployDone = true;
+              return;
+            }
+            this.deployStage = Math.max(this.deployStage, 3);
+            this.deployOutput = data.output || '';
+            this._appendDeployLog('Deploy concluído.');
+            this.deployDone = true;
+            this.deploySuccess = true;
+          } catch (e) {
+            this.deployError = e?.message || 'Erro inesperado no deploy.';
+            this.error = this.deployError;
+            this._appendDeployLog(`Erro local: ${this.deployError}`);
+            this.deployDone = true;
+            this.deploySuccess = false;
+          } finally {
+            this.deploying = false;
+            this.deployingStep = '';
+          }
+        },
+
+        async deployDockerRemote() {
+          this.deploying = true;
+          this.deployingStep = 'docker';
+          this.deployError = '';
+          this.error = '';
+          this.deployDone = false;
+          this.deploySuccess = false;
+          try {
+            const payload = {
+              session_id: this.sessionId,
+              host: this.serverDeploy.ssh_host.trim(),
+              username: this.serverDeploy.ssh_user.trim(),
+              remote_path: this.serverDeploy.remote_path.trim() || '~/kubeforge-app',
+              app_name: this.serverDeploy.app_name.trim() || null,
+              host_port: this._parseOptionalPort(this.serverDeploy.host_port, 'Host Port'),
+              container_port: this._parseOptionalPort(this.serverDeploy.container_port, 'Container Port'),
+              env: {},
+              use_sudo: Boolean(this.serverDeploy.use_sudo),
+            };
+            if (this.serverDeploy.auth_mode === 'key') {
+              payload.private_key = this.serverDeploy.ssh_key.trim();
+              payload.password = null;
+            } else {
+              payload.private_key = null;
+              payload.password = this.serverDeploy.ssh_password;
+            }
+
+            this._appendDeployLog(`POST /deploy/remote host=${payload.host} user=${payload.username}`);
+            const res = await fetch('/deploy/remote', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const raw = await res.text();
+            const data = this._parseJsonSafe(raw) || {};
+            this._appendDeployLog(`HTTP ${res.status} ${res.statusText}`);
+            if (raw && raw.trim()) this._appendDeployLog(raw.slice(0, 5000));
+
+            if (!res.ok) {
+              this.deployError = data.detail || raw || 'Falha no deploy Docker remoto.';
+              this.error = this.deployError;
+              this.deployDone = true;
+              return;
+            }
+
+            this.deployStage = Math.max(this.deployStage, 3);
+            this.deployOutput = data.output || '';
+            this.deployDone = true;
+            this.deploySuccess = true;
+            this._appendDeployLog('Deploy Docker remoto concluído.');
+          } catch (e) {
+            this.deployError = e?.message || 'Erro inesperado no deploy Docker remoto.';
+            this.error = this.deployError;
+            this._appendDeployLog(`Erro local: ${this.deployError}`);
+            this.deployDone = true;
+            this.deploySuccess = false;
+          } finally {
+            this.deploying = false;
+            this.deployingStep = '';
+          }
+        },
+
+        async quickDeployFromHeader() {
+          this.error = '';
+          if (!this.sessionId || !Object.keys(this.generatedFiles).length) {
+            this.error = 'Gere os arquivos antes de fazer deploy.';
+            if (this.step !== 4) this.step = 4;
+            return;
+          }
+          if (this.step !== 4) this.step = 4;
+          await this.$nextTick();
+          this.$refs.deploySection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         },
 
         async copyFile() {
@@ -1229,6 +1828,36 @@
           this.step = 0;
           this.generatedFiles = {};
           this.sessionId = '';
+          this.deployGitUrl = '';
+          this.deployAppName = '';
+          this.deployTag = 'latest';
+          this.deployKubeconfig = '';
+          this.deployLogs = [];
+          this.deployDone = false;
+          this.deploySuccess = false;
+          this.serverDeploy = {
+            mode: 'k8s',
+            ssh_host: '',
+            ssh_user: '',
+            git_url: '',
+            git_branch: '',
+            auth_mode: 'password',
+            ssh_key: '',
+            ssh_password: '',
+            image_name: '',
+            kubeconfig: '',
+            remote_path: '~/kubeforge-app',
+            app_name: '',
+            host_port: '',
+            container_port: '',
+            use_sudo: false,
+          };
+          this.deployStage = 0;
+          this.deployingStep = '';
+          this.deployOutput = '';
+          this.deploying = false;
+          this.deployError = '';
+          this.deployLog = '';
           this.zipFile = null;
           this.zipFileName = '';
           this.error = '';

@@ -39,6 +39,111 @@ def test_dockerfile_gen_node_build_multistage() -> None:
     assert "EXPOSE 3000" in content
 
 
+def test_dockerfile_gen_node_sem_lockfile_usa_npm_install() -> None:
+    """Sem lockfile, "npm ci" quebraria o build; usa-se "npm install"."""
+
+    context = {
+        "language": "node",
+        "has_build_step": False,
+        "build_tool": "npm",
+        "has_lockfile": False,
+        "port": 3000,
+        "start_command": "npm run start",
+    }
+
+    content = dockerfile_gen.generate(context)
+
+    assert "npm install --omit=dev" in content
+    assert "npm ci" not in content
+
+
+def test_dockerfile_gen_node_com_lockfile_usa_npm_ci() -> None:
+    """Com lockfile, mantem instalacao reprodutivel via "npm ci"."""
+
+    context = {
+        "language": "node",
+        "has_build_step": False,
+        "build_tool": "npm",
+        "has_lockfile": True,
+        "port": 3000,
+        "start_command": "npm run start",
+    }
+
+    content = dockerfile_gen.generate(context)
+
+    assert "npm ci --omit=dev" in content
+
+
+def test_dockerfile_gen_node_pnpm_usa_corepack_e_pnpm() -> None:
+    """Projeto pnpm nao pode receber comandos npm no Dockerfile."""
+
+    context = {
+        "language": "node",
+        "has_build_step": True,
+        "build_tool": "pnpm",
+        "has_lockfile": True,
+        "port": 3000,
+        "build_output_dir": "dist",
+        "start_command": "node dist/main.js",
+    }
+
+    content = dockerfile_gen.generate(context)
+
+    assert "pnpm install --frozen-lockfile" in content
+    assert "pnpm prune --prod" in content
+    assert "COPY package.json pnpm-lock.yaml* ./" in content
+    assert "npm ci" not in content
+    # Sem versao fixa o corepack instalaria a ultima release, que pode exigir
+    # um Node mais novo que o da imagem base.
+    assert "corepack prepare pnpm@9.15.4 --activate" in content
+
+
+def test_node_package_manager_context_yarn_sem_lockfile() -> None:
+    """Yarn sem lockfile nao deve exigir --frozen-lockfile."""
+
+    result = dockerfile_gen.node_package_manager_context("yarn", has_lockfile=False)
+
+    assert result["pm_needs_corepack"] is True
+    assert "--frozen-lockfile" not in result["pm_install_prod"]
+    assert result["pm_install_prod"] == "yarn install --production"
+
+
+def test_node_package_manager_context_respeita_package_manager_declarado() -> None:
+    """O campo packageManager do projeto tem prioridade sobre o default."""
+
+    result = dockerfile_gen.node_package_manager_context(
+        "pnpm",
+        has_lockfile=True,
+        package_manager="pnpm@8.15.9",
+    )
+
+    assert result["pm_corepack_spec"] == "pnpm@8.15.9"
+
+
+def test_node_package_manager_context_remove_hash_de_integridade() -> None:
+    """corepack prepare aceita apenas nome@versao, sem o sufixo +sha512."""
+
+    result = dockerfile_gen.node_package_manager_context(
+        "pnpm",
+        has_lockfile=True,
+        package_manager="pnpm@9.1.0+sha512.abc123",
+    )
+
+    assert result["pm_corepack_spec"] == "pnpm@9.1.0"
+
+
+def test_node_package_manager_context_ignora_manager_de_outro_gerenciador() -> None:
+    """packageManager incoerente com o lockfile cai no default seguro."""
+
+    result = dockerfile_gen.node_package_manager_context(
+        "pnpm",
+        has_lockfile=True,
+        package_manager="yarn@4.1.0",
+    )
+
+    assert result["pm_corepack_spec"] == "pnpm@9.15.4"
+
+
 def test_dockerfile_gen_linguagem_invalida() -> None:
     with pytest.raises(ValueError):
         dockerfile_gen.generate({"language": "ruby", "has_build_step": False})

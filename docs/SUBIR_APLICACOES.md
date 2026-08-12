@@ -121,7 +121,58 @@ kubectl get pods,svc -n default
 kubectl rollout status deployment/meu-app -n default
 ```
 
-## 8) Troubleshooting rapido
+## 8) Deploy remoto em servidor dedicado (SSH)
+
+Etapa 1: upload dos arquivos:
+
+```bash
+curl -X POST http://127.0.0.1:8000/push-to-server \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id":"SEU_SESSION_ID",
+    "ssh_host":"203.0.113.10",
+    "ssh_user":"root",
+    "ssh_password":"SUA_SENHA_SSH",
+    "git_url":"https://github.com/org/repo.git",
+    "git_branch":"main"
+  }'
+```
+
+Se `git_url` for enviado, o servidor Linux faz `git clone` e depois recebe apenas os arquivos gerados pelo KubeForge por cima.
+
+Etapa 2: build da imagem:
+
+```bash
+curl -X POST http://127.0.0.1:8000/build-image \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id":"SEU_SESSION_ID",
+    "ssh_host":"203.0.113.10",
+    "ssh_user":"root",
+    "ssh_password":"SUA_SENHA_SSH",
+    "image_name":"kubeforge/meu-app:latest"
+  }'
+```
+
+Etapa 3: deploy no cluster remoto:
+
+```bash
+curl -X POST http://127.0.0.1:8000/deploy \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id":"SEU_SESSION_ID",
+    "ssh_host":"203.0.113.10",
+    "ssh_user":"root",
+    "ssh_password":"SUA_SENHA_SSH",
+    "kubeconfig":"<KUBECONFIG_BASE64>"
+  }'
+```
+
+Você também pode usar `ssh_key` em base64 no lugar de `ssh_password`.
+
+O servidor remoto precisa ter Docker + Docker Compose instalados.
+
+## 9) Troubleshooting rapido
 
 ### Docker daemon desligado
 
