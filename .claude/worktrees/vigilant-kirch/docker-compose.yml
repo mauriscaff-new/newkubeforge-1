@@ -1,0 +1,41 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kubeforge-app
+    ports:
+      - "8000:8000"
+    environment:
+      ENV: ${ENV:-development}
+      REDIS_URL: redis://redis:6379/0
+      KUBEFORGE_SESSION_BACKEND: redis
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8000,http://localhost:3000}
+      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-30}
+      KUBEFORGE_ALLOWED_SOURCE_DIR: /app
+    volumes:
+      - ./:/app
+      - /app/.venv
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  redis:
+    image: redis:7-alpine
+    container_name: kubeforge-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis_data:

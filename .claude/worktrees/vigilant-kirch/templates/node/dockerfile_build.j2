@@ -1,0 +1,52 @@
+# Estágio de build: contém toolchain completa para compilar a aplicação.
+FROM node:20-alpine AS builder
+
+# Define diretório de build.
+WORKDIR /app
+
+# Copia manifestos de dependência para maximizar cache.
+COPY package*.json ./
+
+# Instala dependências de desenvolvimento e produção para compilar.
+RUN npm ci
+
+# Copia todo o código-fonte.
+COPY . .
+
+# Executa build da aplicação (Next.js/NestJS/etc.).
+RUN npm run build
+
+# Remove dependências de desenvolvimento antes de exportar para runtime.
+RUN npm prune --omit=dev
+
+# Estágio de runtime: mantém apenas o necessário para executar.
+FROM node:20-alpine AS runner
+
+# Define diretório final da aplicação.
+WORKDIR /app
+
+# Configura ambiente de produção.
+ENV NODE_ENV=production
+
+# Copia somente manifestos essenciais.
+COPY --from=builder /app/package*.json ./
+
+# Copia node_modules já podado para produção.
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copia artefatos compilados para runtime.
+COPY --from=builder /app/{{ build_output_dir | default('dist') }} ./{{ build_output_dir | default('dist') }}
+
+# Copia diretório público quando existir.
+{% if include_public | default(true) %}
+COPY --from=builder /app/public ./public
+{% endif %}
+
+# Usa usuário padrão "node" para reduzir risco de segurança.
+USER node
+
+# Documenta porta da aplicação.
+EXPOSE {{ port | default(3000) }}
+
+# Comando final de execução em produção.
+CMD ["sh", "-c", "{{ start_command | default('node dist/main.js') }}"]

@@ -1,0 +1,38 @@
+# Estágio de build com Maven para compilar o projeto Java.
+FROM maven:3.9-eclipse-temurin-21 AS builder
+
+# Diretório de build.
+WORKDIR /app
+
+# Copia pom primeiro para aproveitar cache de dependências.
+COPY pom.xml ./
+
+# Baixa dependências antecipadamente para acelerar builds seguintes.
+RUN mvn -B -DskipTests dependency:go-offline
+
+# Copia código-fonte da aplicação.
+COPY src ./src
+
+# Gera o artefato .jar de produção.
+RUN mvn -B -DskipTests package
+
+# Estágio final com runtime JRE Alpine para imagem menor.
+FROM eclipse-temurin:21-jre-alpine
+
+# Diretório de execução.
+WORKDIR /app
+
+# Cria usuário sem privilégios para execução segura.
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Copia apenas o jar final do estágio de build.
+COPY --from=builder /app/target/*.jar /app/app.jar
+
+# Troca para usuário não-root.
+USER appuser
+
+# Porta padrão de aplicações Java web.
+EXPOSE {{ port | default(8080) }}
+
+# Comando de inicialização da aplicação.
+CMD ["java", "-jar", "/app/app.jar"]

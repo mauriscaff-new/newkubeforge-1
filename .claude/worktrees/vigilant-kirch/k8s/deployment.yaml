@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # Nome do Deployment principal da API KubeForge.
+  name: kubeforge
+  labels:
+    app: kubeforge
+spec:
+  # Duas réplicas para alta disponibilidade inicial.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kubeforge
+  template:
+    metadata:
+      labels:
+        app: kubeforge
+    spec:
+      containers:
+      - name: kubeforge
+        # Imagem publicada para produção.
+        image: ghcr.io/mauriscaff/kubeforge:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        # Porta interna exposta pela aplicação FastAPI.
+        - containerPort: 8000
+          name: http
+        # Carrega variáveis não sensíveis e sensíveis via ConfigMap/Secret.
+        envFrom:
+        - configMapRef:
+            name: kubeforge-config
+        - secretRef:
+            name: kubeforge-secret
+        # Readiness define quando o Pod pode receber tráfego.
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 8
+          periodSeconds: 10
+          timeoutSeconds: 3
+        # Liveness detecta travamentos e força restart quando necessário.
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 3
+        # Requests/limits para previsibilidade de CPU e memória.
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi

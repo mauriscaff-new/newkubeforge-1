@@ -1,0 +1,16 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  # PDB garante disponibilidade mínima durante dreno de nodes ou upgrades do cluster.
+  name: {{ app_name }}-pdb
+  labels:
+    app: {{ app_name }}
+spec:
+  # minAvailable: pods que devem permanecer rodando durante operações voluntárias.
+  # Com replicas=2, minAvailable=1 permite remover 1 pod por vez sem downtime.
+  # Atenção: não protege contra falhas involuntárias (crash, OOM) — apenas operações planejadas.
+  minAvailable: 1
+  # Seleciona os pods do Deployment desta aplicação pelo label.
+  selector:
+    matchLabels:
+      app: {{ app_name }}

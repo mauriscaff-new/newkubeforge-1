@@ -1,0 +1,41 @@
+# Estágio de build com toolchain Go completa.
+FROM golang:1.22-alpine AS builder
+
+# Diretório de compilação.
+WORKDIR /src
+
+# Instala certificados para chamadas HTTPS durante go mod download.
+RUN apk add --no-cache ca-certificates
+
+# Copia arquivos de dependência primeiro para otimizar cache.
+COPY go.mod ./
+{% if has_go_sum | default(true) %}
+COPY go.sum ./
+{% endif %}
+
+# Baixa dependências do projeto.
+RUN go mod download
+
+# Copia código-fonte completo.
+COPY . .
+
+# Compila binário estático (sem CGO) para permitir runtime FROM scratch.
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /out/app {{ go_build_target | default('.') }}
+
+# Runtime mínimo com imagem vazia para reduzir superfície de ataque.
+FROM scratch
+
+# Copia certificados raiz para conexões TLS de saída.
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copia apenas o binário final da aplicação.
+COPY --from=builder /out/app /app
+
+# Usa usuário numérico não-root compatível com scratch.
+USER 65532:65532
+
+# Porta padrão para APIs Go.
+EXPOSE {{ port | default(8080) }}
+
+# Executa o binário da aplicação.
+CMD ["/app"]

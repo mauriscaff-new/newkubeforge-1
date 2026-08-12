@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # Política de rede restritiva para o Pod da aplicação.
+  name: {{ app_name }}-netpol
+  labels:
+    app: {{ app_name }}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ app_name }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    # Permite tráfego apenas do namespace do ingress controller.
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: {{ port }}
+  egress:
+  - to:
+    # Permite saída apenas para Redis.
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  - to:
+    # Permite resolução de DNS para descoberta de serviços.
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53

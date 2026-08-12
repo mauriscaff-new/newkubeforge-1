@@ -1,0 +1,35 @@
+# Estágio de build com SDK completo do .NET.
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS builder
+
+# Define diretório de trabalho para build.
+WORKDIR /src
+
+# Copia todo o projeto para restaurar e publicar.
+COPY . .
+
+# Restaura dependências NuGet do projeto.
+RUN dotnet restore {{ dotnet_project | default('') }}
+
+# Publica artefatos otimizados para produção.
+RUN dotnet publish {{ dotnet_project | default('') }} -c Release -o /app/publish /p:UseAppHost=false
+
+# Estágio de runtime apenas com ASP.NET runtime.
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runner
+
+# Diretório de execução no runtime.
+WORKDIR /app
+
+# Cria usuário sem privilégios para execução mais segura.
+RUN useradd --create-home --shell /usr/sbin/nologin appuser
+
+# Copia somente arquivos publicados no estágio de build.
+COPY --from=builder /app/publish .
+
+# Executa como usuário não-root.
+USER appuser
+
+# Porta padrão para serviços ASP.NET.
+EXPOSE {{ port | default(8080) }}
+
+# Comando de inicialização do assembly principal.
+CMD ["dotnet", "{{ dotnet_dll | default('App.dll') }}"]

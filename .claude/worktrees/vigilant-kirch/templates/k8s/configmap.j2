@@ -1,0 +1,13 @@
+{% if config_vars %}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # Configurações não sensíveis da aplicação.
+  name: {{ app_name }}-config
+  labels:
+    app: {{ app_name }}
+data:
+{% for key, value in config_vars.items() %}
+  {{ key }}: "{{ value }}"
+{% endfor %}
+{% endif %}
